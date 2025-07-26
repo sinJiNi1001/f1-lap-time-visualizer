@@ -1,47 +1,55 @@
 import fastf1
 from fastf1 import plotting
 import matplotlib.pyplot as plt
+from fastf1 import get_event_schedule, get_session
+from datetime import datetime, timezone
 
-# Enable cache (creates a 'cache' folder for storing data)
-fastf1.Cache.enable_cache('cache')
+# Get the current UTC time (timezone-aware)
+now = datetime.now(timezone.utc)
 
-# Load the qualifying session for 2023 British GP
-session = fastf1.get_session(2023, 'British Grand Prix', 'Q')
+# Get the event schedule for the current year
+schedule = get_event_schedule(2025)
+
+# Filter only past events (up to last known race)
+past_events = schedule[schedule['Session5Date'] < now]
+
+# Get the latest one
+latest_event = past_events.iloc[-1]
+gp_name = latest_event['EventName']
+
+print(f"Using latest GP: {gp_name}")
+
+# Now load the session (Qualifying shown, change 'Q' to 'R' for Race, etc.)
+session = get_session(2025, gp_name, 'Q')
 session.load()
 
-# List of drivers to compare
-driver_codes = ['VER', 'HAM', 'LEC', 'NOR', 'RUS']
 
-# Assign colors to each driver
-colors = {
-    'VER': 'blue',
-    'HAM': 'black',
-    'LEC': 'red',
-    'NOR': 'orange',
-    'RUS': 'green'
-}
+# Enable cache
+fastf1.Cache.enable_cache('cache')
 
-# Create the plot
-plt.figure(figsize=(10, 6))
+# Load session
+#session = fastf1.get_session(2023, 'British Grand Prix', 'Q')
+#session.load()
 
-# Loop over each driver and plot their quick laps
-for code in driver_codes:
+# Get all driver codes
+all_driver_codes = [session.get_driver(d)['Abbreviation'] for d in session.drivers]
+
+# Assign distinct colors automatically
+colors = plt.cm.get_cmap('tab20', len(all_driver_codes))
+
+# Plot all drivers
+plt.figure(figsize=(16, 8))
+
+for i, code in enumerate(all_driver_codes):
     laps = session.laps.pick_driver(code).pick_quicklaps()
-    plt.plot(
-        laps['LapNumber'],
-        laps['LapTime'].dt.total_seconds(),
-        marker='o',
-        label=code,
-        color=colors[code]
-    )
+    if not laps.empty:
+        plt.plot(laps['LapNumber'], laps['LapTime'].dt.total_seconds(),
+                 marker='o', label=code, color=colors(i))
 
-# Plot settings
-plt.title('Lap Times - 2023 British GP Qualifying')
+plt.title(f'Lap Times - {latest_event["EventName"]} {latest_event["EventDate"].year} Qualifying (All Drivers)')
 plt.xlabel('Lap Number')
 plt.ylabel('Lap Time (seconds)')
-plt.legend(title='Driver Code')
+plt.legend(title='Driver Code', ncol=5, fontsize='small')
 plt.grid(True)
 plt.tight_layout()
-
-# Show plot
 plt.show()
